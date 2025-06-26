@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="msapplication-tap-highlight" content="no">
+    <meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="lib/jquery.mobile-1.4.5.min.css">
+    <link rel="stylesheet" href="css/index.css">
+    <script src="lib/jquery.min.js"></script>
+    <script src="lib/jquery.mobile-1.4.5.min.js"></script>
+    <script src="cordova.js"></script>
+    <script src="js/index.js"></script>
+
+    <title>IoT Capteurs</title>
+    
+    <style>
+        .sensor-card {
+            margin: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .temperature-card { background: linear-gradient(135deg, #ff6b6b, #ff8e53); color: white; }
+        .ph-card { background: linear-gradient(135deg, #4ecdc4, #44a08d); color: white; }
+        .oxygen-card { background: linear-gradient(135deg, #45b7d1, #96c93d); color: white; }
+        .light-card { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; }
+        
+        .sensor-value {
+            font-size: 2em;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .sensor-label {
+            text-align: center;
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        .last-update {
+            text-align: center;
+            font-size: 0.8em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        .status-online { background-color: #4CAF50; }
+        .status-offline { background-color: #f44336; }
+        
+        .chart-container {
+            height: 200px;
+            margin: 15px 0;
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Page d'accueil - Dashboard -->
+    <div data-role="page" id="dashboard">
+        <div data-role="header" data-position="fixed">
+            <h1>IoT Capteurs</h1>
+            <a href="#settings" data-icon="gear" data-iconpos="notext" class="ui-btn-right">Paramètres</a>
+        </div>
+
+        <div data-role="content">
+            <div class="ui-grid-a">
+                <!-- Statut système -->
+                <div class="ui-block-a ui-block-b" style="margin-bottom: 15px;">
+                    <div class="ui-bar ui-corner-all" style="text-align: center; padding: 10px;">
+                        <span class="status-indicator" id="status-indicator"></span>
+                        <span id="connection-status">Connexion...</span>
+                        <span style="float: right;" id="last-sync"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cartes des capteurs -->
+            <div class="ui-grid-a">
+                <div class="ui-block-a">
+                    <div class="sensor-card temperature-card" data-sensor="temperature">
+                        <div class="sensor-label">Température</div>
+                        <div class="sensor-value" id="temp-ambient">--°C</div>
+                        <div class="sensor-label">Ambiante</div>
+                        <div class="sensor-value" id="temp-object" style="font-size: 1.5em;">--°C</div>
+                        <div class="sensor-label">Objet</div>
+                        <div class="last-update" id="temp-time">--</div>
+                    </div>
+                </div>
+                
+                <div class="ui-block-b">
+                    <div class="sensor-card ph-card" data-sensor="ph">
+                        <div class="sensor-label">pH</div>
+                        <div class="sensor-value" id="ph-value">--</div>
+                        <div class="last-update" id="ph-time">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ui-grid-a">
+                <div class="ui-block-a">
+                    <div class="sensor-card oxygen-card" data-sensor="oxygen">
+                        <div class="sensor-label">Oxygène</div>
+                        <div class="sensor-value" id="oxygen-value">-- mg/L</div>
+                        <div class="last-update" id="oxygen-time">--</div>
+                    </div>
+                </div>
+                
+                <div class="ui-block-b">
+                    <div class="sensor-card light-card" data-sensor="luminosite">
+                        <div class="sensor-label">Luminosité</div>
+                        <div class="sensor-value" id="light-value">-- lux</div>
+                        <div class="last-update" id="light-time">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Boutons d'action -->
+            <div class="ui-grid-b" style="margin-top: 20px;">
+                <div class="ui-block-a">
+                    <a href="#" class="ui-btn ui-corner-all ui-icon-refresh ui-btn-icon-left" id="refresh-btn">Actualiser</a>
+                </div>
+                <div class="ui-block-b">
+                    <a href="#history" class="ui-btn ui-corner-all ui-icon-bars ui-btn-icon-left">Historique</a>
+                </div>
+                <div class="ui-block-c">
+                    <a href="#stats" class="ui-btn ui-corner-all ui-icon-info ui-btn-icon-left">Statistiques</a>
+                </div>
+            </div>
+        </div>
+
+        <div data-role="footer" data-position="fixed">
+            <div data-role="navbar">
+                <ul>
+                    <li><a href="#dashboard" class="ui-btn-active">Accueil</a></li>
+                    <li><a href="#history">Historique</a></li>
+                    <li><a href="#stats">Stats</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Historique -->
+    <div data-role="page" id="history">
+        <div data-role="header" data-position="fixed">
+            <a href="#dashboard" data-icon="home" data-iconpos="notext">Accueil</a>
+            <h1>Historique</h1>
+        </div>
+
+        <div data-role="content">
+            <div data-role="controlgroup" data-type="horizontal" data-mini="true">
+                <button class="ui-btn ui-corner-all sensor-filter active" data-sensor="temperature">Temp</button>
+                <button class="ui-btn ui-corner-all sensor-filter" data-sensor="ph">pH</button>
+                <button class="ui-btn ui-corner-all sensor-filter" data-sensor="oxygen">O2</button>
+                <button class="ui-btn ui-corner-all sensor-filter" data-sensor="luminosite">Lum</button>
+            </div>
+
+            <div class="chart-container">
+                <div id="chart-placeholder" class="loading">
+                    <div class="ui-loader"><span class="ui-icon ui-icon-loading"></span></div>
+                    <p>Chargement des données...</p>
+                </div>
+            </div>
+
+            <ul data-role="listview" data-inset="true" id="history-list">
+                <li data-role="list-divider">Dernières mesures</li>
+            </ul>
+        </div>
+
+        <div data-role="footer" data-position="fixed">
+            <div data-role="navbar">
+                <ul>
+                    <li><a href="#dashboard">Accueil</a></li>
+                    <li><a href="#history" class="ui-btn-active">Historique</a></li>
+                    <li><a href="#stats">Stats</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Statistiques -->
+    <div data-role="page" id="stats">
+        <div data-role="header" data-position="fixed">
+            <a href="#dashboard" data-icon="home" data-iconpos="notext">Accueil</a>
+            <h1>Statistiques</h1>
+        </div>
+
+        <div data-role="content">
+            <div data-role="controlgroup" data-type="horizontal" data-mini="true">
+                <button class="ui-btn ui-corner-all period-filter active" data-hours="24">24h</button>
+                <button class="ui-btn ui-corner-all period-filter" data-hours="168">7j</button>
+                <button class="ui-btn ui-corner-all period-filter" data-hours="720">30j</button>
+            </div>
+
+            <div id="stats-content">
+                <div class="loading">Chargement des statistiques...</div>
+            </div>
+        </div>
+
+        <div data-role="footer" data-position="fixed">
+            <div data-role="navbar">
+                <ul>
+                    <li><a href="#dashboard">Accueil</a></li>
+                    <li><a href="#history">Historique</a></li>
+                    <li><a href="#stats" class="ui-btn-active">Stats</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Paramètres -->
+    <div data-role="page" id="settings">
+        <div data-role="header" data-position="fixed">
+            <a href="#dashboard" data-icon="home" data-iconpos="notext">Accueil</a>
+            <h1>Paramètres</h1>
+        </div>
+
+        <div data-role="content">
+            <form>
+                <div data-role="fieldcontain">
+                    <label for="api-url">URL de l'API:</label>
+                    <input type="url" name="api-url" id="api-url" value="https://api-sensor-ucad.onrender.com/api/" />
+                </div>
+                
+                <div data-role="fieldcontain">
+                    <label for="refresh-interval">Intervalle de rafraîchissement (secondes):</label>
+                    <input type="range" name="refresh-interval" id="refresh-interval" value="30" min="5" max="300" />
+                </div>
+                
+                <div data-role="fieldcontain">
+                    <fieldset data-role="controlgroup">
+                        <legend>Notifications:</legend>
+                        <input type="checkbox" name="notifications" id="notifications" checked />
+                        <label for="notifications">Activer les notifications</label>
+                    </fieldset>
+                </div>
+                
+                <button type="button" class="ui-btn ui-corner-all ui-btn-b" id="save-settings">Sauvegarder</button>
+                <button type="button" class="ui-btn ui-corner-all" id="test-connection">Tester la connexion</button>
+            </form>
+        </div>
+    </div>
+
+   
+</body>
+</html>
